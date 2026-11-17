@@ -191,6 +191,28 @@ pub fn usual_game_dirs(home: Option<&Path>) -> Vec<PathBuf> {
         .collect()
 }
 
+/// The game program a typed path names (`[Launcher] Exe`, typed where there is no file
+/// picker): `None` for an empty box (found by itself again), the program inside a folder
+/// that holds it, a leading `~/` read as `home`. An error says what is wrong.
+pub fn program_at(typed: &str, home: Option<&Path>) -> Result<Option<PathBuf>, String> {
+    let t = typed.trim();
+    if t.is_empty() {
+        return Ok(None);
+    }
+    let mut p = match (t.strip_prefix("~/"), home) {
+        (Some(rest), Some(h)) => h.join(rest),
+        _ => PathBuf::from(t),
+    };
+    if p.is_dir() {
+        p = p.join(GAME_EXE);
+    }
+    if p.is_file() {
+        Ok(Some(p))
+    } else {
+        Err(format!("There is no {} at {}.", GAME_EXE, p.display()))
+    }
+}
+
 /// The first of `dirs` that holds the game.
 pub fn first_game_dir(dirs: &[PathBuf]) -> Option<PathBuf> {
     dirs.iter().find(|d| GameInstall::open(d).is_ok()).cloned()
@@ -298,6 +320,24 @@ mod tests {
         assert_eq!(wait(watch(shell("exit 0")).unwrap()), Ok(()));
         let silent = if cfg!(windows) { "exit /b 5" } else { "exit 5" };
         assert_eq!(wait(watch(shell(silent)).unwrap()), Err("The game closed with an error (exit code 5).".into()));
+    }
+
+    #[test]
+    fn a_typed_program_is_checked() {
+        let home = std::env::temp_dir().join(format!("nvf-launcher-program-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        let dir = home.join("NVForever").join("engine").join("target").join("release");
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(program_at("  ", Some(&home)), Ok(None));
+        assert!(program_at(&dir.display().to_string(), Some(&home)).unwrap_err().contains(GAME_EXE));
+        let exe = dir.join(GAME_EXE);
+        std::fs::write(&exe, b"x").unwrap();
+        assert_eq!(program_at(&exe.display().to_string(), Some(&home)), Ok(Some(exe.clone())));
+        assert_eq!(program_at(&format!(" {} ", dir.display()), Some(&home)), Ok(Some(exe.clone())), "the folder that holds it");
+        let tilde = format!("~/NVForever/engine/target/release/{GAME_EXE}");
+        assert_eq!(program_at(&tilde, Some(&home)), Ok(Some(home.join(format!("NVForever/engine/target/release/{GAME_EXE}")))));
+        assert!(program_at(&tilde, None).is_err(), "no home: ~ is not guessed");
+        std::fs::remove_dir_all(&home).unwrap();
     }
 
     #[test]

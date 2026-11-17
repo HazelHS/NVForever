@@ -86,6 +86,8 @@ pub struct App {
     edits: BTreeMap<String, String>,
     // Game folder.
     game_edit: String,
+    /// The game program's place as typed (no file picker off Windows).
+    exe_edit: String,
     // Mods.
     mods: Option<plugins::PluginList>,
     mods_dirty: bool,
@@ -151,6 +153,7 @@ impl App {
             stored: BTreeMap::new(),
             edits: BTreeMap::new(),
             game_edit: String::new(),
+            exe_edit: String::new(),
             mods: None,
             mods_dirty: false,
             mods_drag: None,
@@ -297,6 +300,7 @@ impl App {
         }
         let configured = ini_get(&self.ini_text, LAUNCHER, "Exe").filter(|s| !s.is_empty()).map(PathBuf::from);
         self.exe = launch::find_game(configured.as_deref());
+        self.exe_edit = configured.or_else(|| self.exe.clone()).map(|p| p.display().to_string()).unwrap_or_default();
     }
 
     fn launcher_flag(&self, key: &str, default: bool) -> bool {
@@ -1658,10 +1662,25 @@ impl App {
                 Some(p) => ui.label(format!("Starts {}", p.display())),
                 None => ui.label(RichText::new(format!("{} was not found beside the launcher.", launch::GAME_EXE)).color(BAD)),
             };
-            if cfg!(windows) && ui.button("Choose the game program…").clicked() {
-                if let Some(f) = pick_file("nvforever") {
-                    self.set_launcher_key("Exe", &f.display().to_string());
+            if cfg!(windows) {
+                if ui.button("Choose the game program…").clicked() {
+                    if let Some(f) = pick_file("nvforever") {
+                        self.set_launcher_key("Exe", &f.display().to_string());
+                    }
                 }
+            } else {
+                // No file picker off Windows (Cargo.toml): the program's place is typed, as
+                // the game folder is. Empty: found by itself again (beside the launcher, or
+                // this checkout's engine/target).
+                if self.exe.is_none() {
+                    ui.label(RichText::new("Built from source? Build the game too (cd engine && cargo build --release), or type where nvforever is.").small().color(WEAK));
+                }
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut self.exe_edit).hint_text("/path/to/nvforever").desired_width(ui.available_width() - 80.0));
+                    if ui.button(RichText::new("Save").strong()).clicked() {
+                        self.save_program();
+                    }
+                });
             }
         });
         ui.add_space(12.0);
@@ -1698,6 +1717,19 @@ impl App {
                     }
                 }
             });
+        }
+    }
+
+    /// The typed program (Linux, macOS): `[Launcher] Exe`, or the key emptied when the box is.
+    fn save_program(&mut self) {
+        let home = std::env::var_os("HOME").map(PathBuf::from);
+        match launch::program_at(&self.exe_edit, home.as_deref()) {
+            Ok(p) => {
+                let value = p.map(|p| p.display().to_string()).unwrap_or_default();
+                let r = self.write_ini(|t| ini_set(&t, LAUNCHER, "Exe", &value));
+                self.after_write(r, Some(if value.is_empty() { "The game program is found by itself again." } else { "Game program saved." }));
+            }
+            Err(e) => self.message = Some((e, true)),
         }
     }
 

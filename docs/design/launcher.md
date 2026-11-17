@@ -238,6 +238,9 @@ on fixture folders and a fixture zip/tar.gz (no real release is downloaded by an
   from the game. Better: the game writes its settings catalogue (kinds, steps' words, choices,
   defaults) to the home at each start, and the launcher reads it.
 - Screen readers: eframe's `accesskit` brings zbus on Linux (unmaintained, RustSec), so it is off.
-- No folder picker on Linux (rfd's portal backend brings zbus too): the folder is typed.
+- No folder picker on Linux (rfd's portal backend brings zbus too): the folder is typed, and
+  so is the game program (`[Launcher] Exe`; a folder holding `nvforever`, or `~/…`, is
+  taken; an empty box goes back to finding it by itself). When it is not found, the card
+  says to build `engine/` too for a source build.
 - Updater: the checksum list is not signed; no automatic install without the player's click;
   no update of a launcher installed outside a release folder (a package manager's copy).
