@@ -12,7 +12,6 @@ use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 use fnv_install::{guard_write, ini_get, ini_pairs, ini_set, plugins, write_whole, Config, EngineHome, GameInstall};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
-use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
@@ -121,7 +120,7 @@ pub struct App {
     // Starting the game.
     newest: Option<NewestSave>,
     exe: Option<PathBuf>,
-    child: Option<Child>,
+    child: Option<launch::Game>,
     /// Test aid: `NVF_LAUNCHER_SHOT=<file.png>[;page]` saves the window once the news has
     /// settled and closes (`NVF_LAUNCHER_PAGE`: home, settings, mods, game).
     shot: Option<(PathBuf, u32)>,
@@ -213,6 +212,11 @@ impl App {
             app.load_mods();
         }
         app.reload_ini();
+        // A first start (no game folder yet) opens where it is set (#2938); a test aid's
+        // page wins.
+        if std::env::var_os("NVF_LAUNCHER_PAGE").is_none() && !app.game_known() {
+            app.page = Page::Game;
+        }
         app.find_newest_save();
         if let Some(h) = &app.home {
             app.news = news::load_cache(&h.cache()).into_iter().map(|p| (p, None)).collect();
@@ -284,6 +288,13 @@ impl App {
         self.rows = menu.rows;
         self.tab = on.and_then(|on| self.tabs.iter().position(|t| *t == on)).unwrap_or(0);
         self.game_edit = Config::from_ini(&self.ini_text).game_dir.map(|p| p.display().to_string()).unwrap_or_default();
+        // None set: Steam's or GOG's usual folder when the game is there, shown to be saved.
+        if self.game_edit.is_empty() {
+            let home = std::env::var_os("HOME").map(PathBuf::from);
+            if let Some(d) = launch::first_game_dir(&launch::usual_game_dirs(home.as_deref())) {
+                self.game_edit = d.display().to_string();
+            }
+        }
         let configured = ini_get(&self.ini_text, LAUNCHER, "Exe").filter(|s| !s.is_empty()).map(PathBuf::from);
         self.exe = launch::find_game(configured.as_deref());
     }
@@ -412,23 +423,40 @@ impl App {
     // ---- Starting ----
 
     fn running(&mut self) -> bool {
-        match &mut self.child {
-            Some(c) => match c.try_wait() {
-                Ok(None) => true,
-                _ => {
-                    self.child = None;
-                    self.reload_ini();
-                    self.find_newest_save();
-                    false
+        let Some(g) = &mut self.child else { return false };
+        let Some(closed) = g.poll() else { return true };
+        self.child = None;
+        self.reload_ini();
+        self.find_newest_save();
+        match closed {
+            Ok(()) => {
+                if self.message.as_ref().is_some_and(|(m, _)| m == STARTING) {
+                    self.message = None;
                 }
-            },
-            None => false,
+            }
+            // The game's own reason (no game folder, files missing; #2938), not left at
+            // "The game is starting…".
+            Err(e) => self.message = Some((e, true)),
         }
+        false
+    }
+
+    /// Whether the game has a folder to run on: the INI's, or the one Mod Organizer 2's
+    /// instance manages when MO2 started the launcher (the game it starts inherits that).
+    fn game_known(&self) -> bool {
+        self.game().is_some() || fnv_install::mo2::game_dir().is_some()
     }
 
     fn start(&mut self, ctx: &egui::Context, start: Start) {
         if matches!(self.upd, Upd::Installing) {
             self.message = Some(("The update is being installed: play once it is done.".into(), true));
+            return;
+        }
+        // No folder: the game would only stop (Linux, no dialogs there) or ask in its own
+        // dialogs; this page asks instead (#2938).
+        if !self.game_known() {
+            self.page = Page::Game;
+            self.message = Some((NEEDS_FOLDER.into(), true));
             return;
         }
         if !self.edits.is_empty() {
@@ -446,7 +474,7 @@ impl App {
         match launch::spawn(&exe, &start) {
             Ok(c) => {
                 self.child = Some(c);
-                self.message = Some(("The game is starting…".into(), false));
+                self.message = Some((STARTING.into(), false));
                 if self.launcher_flag("CloseOnPlay", false) {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
@@ -672,6 +700,9 @@ impl App {
 }
 
 const REPO: &str = "https://github.com/LootJunkieAzza/NVForever";
+
+const STARTING: &str = "The game is starting…";
+const NEEDS_FOLDER: &str = "NVForever needs your Fallout: New Vegas folder first: set it here and click Save.";
 
 /// A page button of the left bar; the open page's has a gold edge and mark.
 fn nav_button(ui: &mut egui::Ui, name: &str, on: bool) -> egui::Response {
@@ -1604,6 +1635,9 @@ impl App {
                     let missing = g.missing_files();
                     if missing.is_empty() {
                         ui.label(RichText::new("Every game file NVForever needs is there.").color(GOOD));
+                        if self.game().is_none() {
+                            ui.label(RichText::new("Not saved yet: click Save to play with this folder.").small().color(WEAK));
+                        }
                     } else {
                         ui.label(RichText::new(format!("Missing from Data: {}", missing.join(", "))).color(BAD));
                     }

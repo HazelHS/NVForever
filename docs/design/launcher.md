@@ -62,7 +62,15 @@ without the launcher is the same as before.
 - **Game folder**: `[Game] Path` with the required-files check, the program to start
   (`[Launcher] Exe`, else `nvforever(.exe)` beside the launcher, else this checkout's
   `engine/target/release`), and buttons that open the saves, logs, screenshots and settings
-  folders.
+  folders. With no usable folder (none in the INI, no Mod Organizer 2 start) the launcher
+  opens on this page, and Play, Continue and the More menu's starts come back here with a
+  message instead of starting the game (#2938): on Linux the game has no folder dialog and
+  would only stop. The box is filled in with Steam's or GOG's usual folder when the game is
+  there [our choice: Windows `C:\Program Files (x86)\Steam\…`, `C:\GOG Games\…`; Linux
+  `~/.local/share/Steam/…`, `~/.steam/steam/…`, the Flatpak's], saved only by Save.
+- **The game closing**: the launcher reads the game's stderr (passing every line on to its
+  own) and keeps its last `error: …` message; a game that closes with an error shows that
+  message, or its exit code, in the message line instead of "The game is starting…".
 - **Website / GitHub**: open nv-forever.com and the repository in the browser.
 
 ## Top and bottom bars
