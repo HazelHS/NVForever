@@ -47,8 +47,10 @@ are known by name only; no memory layout of the original is used (extender-compa
   transpose of the rotation the node is drawn with, for drawn nodes as for a model file's
   (`fnv_game::nif_blocks::drawn`; the engine's mirror writes and reads the inverse)
   [observed: the 10mm pistol's ProjectileNode reads 90 0 90, its file matrix's rows taken
-  as columns; B42 True Leaning's lean steps right while turning its nodes -18° about Y,
-  a roll right only so]. The world places (`node_place`) go through the drawn rotations.
+  as columns; hypothesis: angles a script sets are drawn the same way, as B42 True
+  Leaning's lean steps right while turning its nodes -18° about Y, a roll right only so;
+  [observer check 245](../handoff/observer-checks.md)]. The world places (`node_place`)
+  go through the drawn rotations. Accepted by the maintainer on 2026-11-21 (#3138).
 - A player rig's root (`Scene Root`) is told in the player's own frame, its position and
   angles in the simulation, from the pose the rig was given before the first-person lens
   holds it at the eye (`PlayerBody::posed_root`), so a node's world place is where it is

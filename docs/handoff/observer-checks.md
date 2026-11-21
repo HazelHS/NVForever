@@ -3396,3 +3396,18 @@ already talking takes over at once, same topic or another; nothing is queued or 
      moving ones, and the change from walking to standing can let one creature
      pass briefly into the other. Both are left for the follow-up on the character
      controller's movement path.
+
+## Added 2026-11-21 (the angles SetNifBlockRotation sets on a drawn node, #3135, #3138)
+
+245. **Which way does SetNifBlockRotation turn a drawn node?** (P3; #3138,
+     [nif-blocks](../design/nif-blocks.md) Conventions.) NVForever takes a node's angles
+     as those of the transpose of the rotation it is drawn with [observed: the 10mm
+     pistol's ProjectileNode reads 90 0 90 in GetNifBlockRotation, its file matrix's rows
+     taken as columns], and so draws a set angle turned the other way from the plain
+     right-handed rotation [hypothesis: B42 True Leaning's lean right steps the view +22
+     along X and turns its nodes -18° about Y, a roll right only so]. In the original,
+     with a pistol drawn in first person, read `player.GetNifBlockTranslationAlt "Bip01 R
+     Hand" x y z 1 2` (the world place), run `player.SetNifBlockRotation "Bip01 Translate"
+     0 0 30 0 2`, wait a frame and read it again; do the same in NVForever from the same
+     place and heading. The hand moving the same way in both settles it. The reading
+     back, `player.GetNifBlockRotation "Bip01 Translate" "Z" 0 2`, should be 30 in both.

@@ -860,7 +860,7 @@ fn script_offset(a: &Animator, c: usize, parents: &Query<&ChildOf>, transforms: 
 /// (`nif_mirror`, after the scripts ran): the view and the arms' lens move by what they
 /// changed since the body was posed ([`drive_body`], before the scripts), so the view is
 /// drawn with the same values as the arms. Without it the view kept the previous frame's
-/// while a lean eased in or out, and shook against the arms [observed: the owner's
+/// while a lean eased in or out, and shook against the arms [observed: the reporter's
 /// playtest of B42 True Leaning, 2026-11-20].
 fn follow_script_nodes(state: Res<PlayerBody>, parents: Query<&ChildOf>, mut transforms: Query<&mut Transform>, cams: Query<Entity, With<nvf_play::PlayerCamera>>) {
     let Some(f) = state.body.as_ref().and_then(|b| b.first.as_ref()).filter(|_| state.script_view) else { return };

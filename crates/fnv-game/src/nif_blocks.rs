@@ -31,8 +31,9 @@ pub struct SceneNode {
     /// angles are those of the transpose of the rotation the node is drawn with
     /// ([`drawn`]) [observed: GetNifBlockRotation of the 10mm pistol's ProjectileNode,
     /// 90 0 90, is its file matrix's rows taken as columns, the transpose of the drawn
-    /// one; B42 True Leaning's lean right steps right and turns its nodes -18° about Y,
-    /// a roll right only so, mods_reference ln_B42Leaning.txt].
+    /// one; hypothesis: set angles are drawn the same way, as B42 True Leaning's lean
+    /// right steps right and turns its nodes -18° about Y, a roll right only so (its
+    /// `ln_B42Leaning.txt`); observer-checks.md 245].
     pub translation: [f32; 3],
     pub rotation: [f32; 3],
     pub scale: f32,
@@ -170,10 +171,12 @@ pub struct SceneMirror {
     /// (else stencil), item, value.
     prop_sets: Vec<(FormId, ModelView, String, bool, usize, f32)>,
     /// The nodes InsertNode put into each drawn model (reference, model, node name), with
-    /// that model's identity then: a model drawn anew lacks them and gets them again
-    /// ([`SceneMirror::insert_node`]), the same model is not given a second copy while
-    /// the engine's tree does not show the first yet.
-    inserted: HashMap<(FormId, ModelView, String), Option<u64>>,
+    /// that model's identity then and whether a tree the host told since showed the node
+    /// ([`SceneMirror::insert_node`]): the same model is not given a second copy while the
+    /// host has not shown the first yet; a model drawn anew lacks it and gets it again,
+    /// told by its new identity or, without one, by a tree that showed the node and then
+    /// lacked it.
+    inserted: HashMap<(FormId, ModelView, String), (Option<u64>, bool)>,
 }
 
 impl SceneMirror {
@@ -217,6 +220,11 @@ impl SceneMirror {
         let view = self.resolve_view(r, view);
         // An explicit legacy publication deliberately opts this host back out.
         self.identified.remove(&(r, view));
+        for ((ir, iv, name), (_, shown)) in self.inserted.iter_mut() {
+            if *ir == r && *iv == view && find(&nodes, name).is_some() {
+                *shown = true;
+            }
+        }
         for (pr, pv, node, alpha, item, v) in &self.prop_sets {
             if *pr == r && *pv == view {
                 if let Some(i) = find(&nodes, node) {
@@ -347,7 +355,7 @@ impl SceneMirror {
             let Some(t) = self.trees.get_mut(&(r, view)) else { continue };
             let Some(i) = find(t, target) else { continue };
             any = true;
-            if find(t, name).is_some() || self.inserted.get(&key) == Some(&model) {
+            if find(t, name).is_some() || self.inserted.get(&key).is_some_and(|&(m, shown)| m == model && !shown) {
                 continue;
             }
             let node = SceneNode { name: name.to_string(), parent: if as_parent { t[i].parent } else { Some(i) }, translation: [0.0; 3], rotation: [0.0; 3], scale: 1.0, flags: 0, material: None, info: None };
@@ -356,7 +364,7 @@ impl SceneMirror {
                 let new = t.len() - 1;
                 t[i].parent = Some(new);
             }
-            self.inserted.insert(key, model);
+            self.inserted.insert(key, (model, false));
             self.queue_for(view, SceneEdit::Insert { r, target: target.to_string(), name: name.to_string(), as_parent });
         }
         any

@@ -42,6 +42,15 @@ fn insert_node_goes_into_a_model_drawn_after_the_call_once() {
         g.tick();
         assert_eq!(inserts(&g.scene.take_edits()), 0);
         assert_eq!(has(g, "OwnedRefB", "Added"), XVal::Num(0.0), "another reference keeps its model");
+        // The host shows it, then tells a model drawn anew without it (no identity to tell
+        // the two apart): it goes in again.
+        g.scene.set_tree(FIRST, nodes(&["Added", "OwnedRoot"]));
+        g.tick();
+        assert_eq!(inserts(&g.scene.take_edits()), 0);
+        g.scene.set_tree(FIRST, tree("OwnedRoot"));
+        g.tick();
+        assert_eq!(inserts(&g.scene.take_edits()), 1);
+        assert_eq!(has(g, "OwnedRefA", "Added"), XVal::Num(1.0));
     });
 }
 
