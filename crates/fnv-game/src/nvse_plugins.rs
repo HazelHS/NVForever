@@ -362,11 +362,12 @@ pub(crate) fn call(g: &mut Game, _ctx: &RunCtx, name: &str, subject: Option<Form
                 _ => XVal::Ref(0),
             }
         }
-        // No model clears the combination's form, so first person draws the third-person
-        // model the weapon has for it (weapon-mods.md §2, §8) [hypothesis: WAP's script
-        // files set MODL and MWD1–MWD7 with SetWeaponModel and then call this with no model
-        // for each of 0–7, for new first-person models; observed: mods_reference WAP
-        // gr_10mmP.txt].
+        // No model argument clears the combination's form, so first person draws the
+        // third-person model the weapon has for it (weapon-mods.md §2, §8) [hypothesis: WAP's
+        // script files set MODL and MWD1–MWD7 with SetWeaponModel and then call this with no
+        // model for each of 0–7, for new first-person models; observed: WAP Year One's
+        // gr_10mmP.txt]. A model argument that is no form (an empty reference, a missing
+        // master's form) changes nothing, as before [hypothesis: the original's no-op].
         "setweapon1stpersonmodel" => {
             let Some(w) = form(args, 0) else { return Some(Ok(zero)) };
             let sub = match num(args, 1, -1.0) as i64 {
@@ -374,7 +375,14 @@ pub(crate) fn call(g: &mut Game, _ctx: &RunCtx, name: &str, subject: Option<Form
                 k @ 1..=7 => format!("WNM{k}/"),
                 _ => return Some(Ok(zero)),
             };
-            g.field_overrides.insert((w, sub), XVal::Ref(form(args, 2).map_or(0, |m| m.0)));
+            let model = match args.get(2) {
+                None => 0,
+                Some(_) => match form(args, 2) {
+                    Some(m) => m.0,
+                    None => return Some(Ok(zero)),
+                },
+            };
+            g.field_overrides.insert((w, sub), XVal::Ref(model));
             zero
         }
         // `armor modelID(1-4) index3D`, success(0/1) [documented: ClearArmorAltTexture].

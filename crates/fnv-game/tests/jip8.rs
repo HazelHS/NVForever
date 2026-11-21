@@ -353,6 +353,13 @@ fn weapons() {
     let c = &changes[&FormId(WEAP)];
     assert_eq!((c.world[3].clone(), c.world[0].clone(), c.first_person[0].clone(), c.first_person[3].clone()), (Some(Some("weapons\\gun13.nif".to_string())), None, Some((None, None)), None));
     assert_eq!(n(&mut g, "GetWeapon1stPersonModel TestGun 0"), 0.0);
+    // A model argument that is no form (an empty reference) changes nothing; no model
+    // argument clears.
+    let set = |g: &mut Game, args: &[XVal]| fnv_game::nvse::call(g, &RunCtx::default(), "setweapon1stpersonmodel", None, args).unwrap().unwrap();
+    set(&mut g, &[XVal::Ref(WEAP), XVal::Num(4.0), XVal::Ref(0)]);
+    set(&mut g, &[XVal::Ref(WEAP), XVal::Num(5.0)]);
+    let changes = g.weapon_model_changes();
+    assert_eq!((changes[&FormId(WEAP)].first_person[4].clone(), changes[&FormId(WEAP)].first_person[5].clone()), (None, Some((None, None))));
     q(&mut g, "SetWeaponModReloadAnim TestGun 8");
     assert_eq!(n(&mut g, "GetWeaponModReloadAnim TestGun"), 8.0);
     // Embedded weapon: the condition actor values 0-6, and the node.
@@ -413,3 +420,19 @@ fn cells_and_water() {
     assert_eq!((n(&mut g, "GetWaterTrait TestWater 9"), n(&mut g, "GetWaterTrait TestWater 51")), (0.0, 0.0));
 }
 
+/// Script-set models are the session's: a load starts from the records again (`Game::restore`
+/// builds a new game), and the Script Runner's `gr_` files set them again after it
+/// (ext-script-runner.md; weapon-mods.md §8).
+#[test]
+fn a_load_drops_the_models_scripts_set() {
+    let f = fixture();
+    let mut g = game(&f);
+    let empty = g.weapon_model_stamp();
+    q(&mut g, r#"SetWeaponModel TestGun 0 "weapons\other.nif"
+SetWeapon1stPersonModel TestGun 0"#);
+    assert_eq!(g.weapon_model_changes().len(), 1);
+    let snapshot = g.snapshot();
+    let back = Game::restore(&f.data, World::new(&f.forms, &f.refs, SimConfig::default()), GameConfig { strict: true, ..GameConfig::default() }, &snapshot).unwrap();
+    assert!(back.weapon_model_changes().is_empty());
+    assert_eq!(back.weapon_model_stamp(), empty);
+}

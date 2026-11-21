@@ -42,7 +42,8 @@ fn cleared_first_person_forms_draw_the_new_world_models_in_both_views() {
     // The record's textures were made for the record's models.
     assert!(f.weapon_alt_textures(PISTOL, true, 0).is_empty());
     assert!(!f.alt_textures.contains_key(&(PISTOL, *b"MODL")));
-    assert!(!f.alt_textures.contains_key(&(STAT, *b"MODL")));
+    // The first-person form's list stays for the other weapons that share the form.
+    assert!(f.alt_textures.contains_key(&(STAT, *b"MODL")));
 }
 
 #[test]

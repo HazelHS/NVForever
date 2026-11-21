@@ -402,7 +402,9 @@ for each effect, and how it fits a long description.
   person draws the third-person model the weapon has for the combination (§2)
   [hypothesis: WAP Year One's script files set every `MODL`/`MWD` model of a weapon with
   SetWeaponModel and then call SetWeapon1stPersonModel with no model for each of 0–7,
-  which only means something as a clear; observed: its `gr_10mmP.txt`].
+  which only means something as a clear; observed: its `gr_10mmP.txt`]. A model argument
+  that is no form (an empty reference, a missing master's form) changes nothing
+  [hypothesis: the original's no-op for a form it cannot resolve].
 - **Drawn**: the changes hold for the session (`fnv_game::Game::weapon_model_changes`);
   the renderer copies them into its record view (`engine/nvforever/src/weapon_models.rs`),
   so the player's weapon in both views and an NPC's weapon taken up afterwards are drawn
@@ -410,7 +412,7 @@ for each effect, and how it fits a long description.
   weapon is drawn again as soon as its model changes [design].
 - **Alternate textures**: a model a script set is drawn without the record's alternate
   texture list for the model it replaced [hypothesis: the list names that model's
-  shapes]; the third-person `MOD4` held in place of `MODL` (Lucky's) gives way to a
+  shapes]; a first-person form's list stays with the form, which other weapons may share; the third-person `MOD4` held in place of `MODL` (Lucky's) gives way to a
   script's `MODL` [hypothesis: the mod meant its model to be seen].
 - **Not built**: a weapon lying in the world or placed in a cell keeps its record's
   model; an NPC already holding the weapon keeps the old model until it takes up

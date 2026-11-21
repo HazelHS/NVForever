@@ -51,17 +51,17 @@ impl WeaponModelSync {
         for id in ids {
             let Some(w) = actors.weapons.get(&id) else { continue };
             let authored = self.authored.entry(id).or_insert_with(|| Authored {
-                textures: alt_texture_keys(id, w).filter_map(|k| actors.alt_textures.get(&k).map(|l| (k, l.clone()))).collect(),
+                textures: alt_texture_keys(id).filter_map(|k| actors.alt_textures.get(&k).map(|l| (k, l.clone()))).collect(),
                 weapon: w.clone(),
             });
-            for k in alt_texture_keys(id, &authored.weapon) {
+            for k in alt_texture_keys(id) {
                 actors.alt_textures.remove(&k);
             }
             let change = now.get(&id);
             // A changed model is not the one the record's alternate textures were made for
             // [hypothesis: they name its shapes]; the others keep theirs.
             for (k, l) in &authored.textures {
-                if change.is_none_or(|c| !touches(c, id, k, &authored.weapon)) {
+                if change.is_none_or(|c| !touches(c, k)) {
                     actors.alt_textures.insert(*k, l.clone());
                 }
             }
@@ -76,17 +76,19 @@ impl WeaponModelSync {
     }
 }
 
-/// The alternate texture lists drawn with `w` (`ActorForms::weapon_alt_textures`).
-fn alt_texture_keys(id: FormId, w: &Weapon) -> impl Iterator<Item = (FormId, [u8; 4])> {
-    [Some((id, *b"MODL")), Some((id, *b"MOD4")), w.first_person.map(|f| (f, *b"MODL"))].into_iter().flatten()
+/// The weapon's own alternate texture lists (`ActorForms::weapon_alt_textures`): those of
+/// its MODL and MOD4. Its first-person form's list belongs to that form, which other
+/// weapons may share; a script's first-person change replaces the form itself
+/// (`Weapon::first_person`), so the old form's list is no longer read for this weapon.
+fn alt_texture_keys(id: FormId) -> impl Iterator<Item = (FormId, [u8; 4])> {
+    [(id, *b"MODL"), (id, *b"MOD4")].into_iter()
 }
 
-/// Whether `c` changes the model the alternate texture list `k` goes with.
-fn touches(c: &WeaponModelChange, id: FormId, k: &(FormId, [u8; 4]), w: &Weapon) -> bool {
-    if k.0 == id {
-        c.world[0].is_some()
-    } else {
-        w.first_person == Some(k.0) && c.first_person[0].is_some()
+/// Whether `c` changes the model the weapon's alternate texture list `k` goes with.
+fn touches(c: &WeaponModelChange, k: &(FormId, [u8; 4])) -> bool {
+    match &k.1 {
+        b"MODL" | b"MOD4" => c.world[0].is_some(),
+        _ => false,
     }
 }
 
